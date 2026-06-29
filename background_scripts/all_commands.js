@@ -643,6 +643,119 @@ const allCommands = [
     noRepeat: true,
     topFrame: true,
   },
+
+  //
+  // Media / video (globalSpeed-style; added in this fork)
+  //
+
+  {
+    name: "speedUpVideo",
+    desc: "Speed up video/audio",
+    group: "media",
+    options: {
+      step: "Amount to change the playback rate by. Default \`0.25\`.",
+    },
+  },
+
+  {
+    name: "slowDownVideo",
+    desc: "Slow down video/audio",
+    group: "media",
+    options: {
+      step: "Amount to change the playback rate by. Default \`0.25\`.",
+    },
+  },
+
+  {
+    name: "resetVideoSpeed",
+    desc: "Reset playback speed to 1×",
+    group: "media",
+    noRepeat: true,
+  },
+
+  {
+    name: "setVideoSpeed",
+    desc: "Set playback speed",
+    group: "media",
+    noRepeat: true,
+    options: {
+      speed: "Playback rate to set, e.g. \`speed=2\` for 2× speed. Default \`1\`.",
+    },
+  },
+
+  {
+    name: "seekVideoForward",
+    desc: "Seek forward",
+    group: "media",
+    options: {
+      seconds: "Number of seconds to seek. Default \`5\`.",
+    },
+  },
+
+  {
+    name: "seekVideoBackward",
+    desc: "Seek backward",
+    group: "media",
+    options: {
+      seconds: "Number of seconds to seek. Default \`5\`.",
+    },
+  },
+
+  {
+    name: "videoFrameForward",
+    desc: "Step one frame forward",
+    group: "media",
+    noRepeat: true,
+  },
+
+  {
+    name: "videoFrameBackward",
+    desc: "Step one frame backward",
+    group: "media",
+    noRepeat: true,
+  },
+
+  {
+    name: "toggleVideoPlay",
+    desc: "Play/pause video",
+    group: "media",
+    noRepeat: true,
+  },
+
+  {
+    name: "toggleVideoMute",
+    desc: "Mute/unmute video",
+    group: "media",
+    noRepeat: true,
+  },
+
+  {
+    name: "toggleVideoLoop",
+    desc: "Toggle video loop",
+    group: "media",
+    noRepeat: true,
+  },
+
+  {
+    name: "toggleVideoPictureInPicture",
+    desc: "Toggle picture-in-picture",
+    group: "media",
+    noRepeat: true,
+  },
+
+  {
+    name: "toggleVideoFullscreen",
+    desc: "Toggle video fullscreen",
+    group: "media",
+    noRepeat: true,
+  },
+
+  {
+    name: "restartVideo",
+    desc: "Restart video from the beginning",
+    group: "media",
+    noRepeat: true,
+  },
 ];
 
 export { allCommands };

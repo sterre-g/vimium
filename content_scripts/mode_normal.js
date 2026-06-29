@@ -95,7 +95,234 @@ function findSelectedHelper(backwards) {
   FindMode.findNext(backwards);
 }
 
+//
+// Media / video speed control (globalSpeed-style). Added in this fork; see FORK_NOTES.md.
+// Operates on <video>/<audio> in the current frame. Speed changes apply to all media and are
+// remembered per host (like globalSpeed); other actions target the most relevant media element.
+//
+const VideoMedia = {
+  MIN_RATE: 0.0625,
+  MAX_RATE: 16,
+  rememberedRate: null,
+
+  hostKey() {
+    return `videoSpeedRate.${location.hostname}`;
+  },
+
+  init() {
+    try {
+      chrome.storage.local.get(this.hostKey(), (items) => {
+        const rate = items && items[this.hostKey()];
+        if (typeof rate === "number") {
+          this.rememberedRate = rate;
+          this.applyRateToAll(rate);
+        }
+      });
+    } catch (_error) {
+      // chrome.storage may be unavailable in some restricted frames; ignore.
+    }
+    // Re-apply the remembered rate to media as it appears or starts (SPAs, lazy players).
+    const reapply = (event) => {
+      const el = event.target;
+      if (this.rememberedRate != null && el instanceof HTMLMediaElement) {
+        if (el.playbackRate !== this.rememberedRate) {
+          el.playbackRate = this.rememberedRate;
+        }
+      }
+    };
+    document.addEventListener("play", reapply, true);
+    document.addEventListener("loadstart", reapply, true);
+  },
+
+  allMedia() {
+    return Array.from(document.querySelectorAll("video, audio"));
+  },
+
+  // The element the user most likely means: largest playing visible video, else largest video,
+  // else any media element.
+  active() {
+    const media = this.allMedia();
+    if (media.length === 0) return null;
+    const videos = media.filter((el) => el.tagName === "VIDEO");
+    const pool = videos.length ? videos : media;
+    const score = (el) => {
+      const rect = el.getBoundingClientRect();
+      const area = Math.max(0, rect.width) * Math.max(0, rect.height);
+      const playing = !el.paused && !el.ended ? 1 : 0;
+      return (playing * 1e12) + area;
+    };
+    return pool.reduce((best, el) => (score(el) > score(best) ? el : best), pool[0]);
+  },
+
+  clampRate(rate) {
+    return Math.min(this.MAX_RATE, Math.max(this.MIN_RATE, rate));
+  },
+
+  applyRateToAll(rate) {
+    const r = this.clampRate(rate);
+    for (const el of this.allMedia()) {
+      el.playbackRate = r;
+    }
+    return r;
+  },
+
+  rememberRate(rate) {
+    this.rememberedRate = rate;
+    try {
+      chrome.storage.local.set({ [this.hostKey()]: rate });
+    } catch (_error) {
+      // ignore storage errors
+    }
+  },
+
+  currentRate() {
+    const el = this.active();
+    if (el) return el.playbackRate;
+    return this.rememberedRate != null ? this.rememberedRate : 1;
+  },
+
+  notify(message) {
+    if (typeof HUD !== "undefined" && HUD.show) HUD.show(message, 1000);
+  },
+
+  noMedia() {
+    this.notify("No video or audio on this page");
+    return null;
+  },
+
+  changeRate(deltaSteps, step) {
+    if (this.allMedia().length === 0) return this.noMedia();
+    const newRate = this.clampRate(this.currentRate() + (deltaSteps * step));
+    this.applyRateToAll(newRate);
+    this.rememberRate(newRate);
+    this.notify(`Speed ${newRate.toFixed(2)}\u00d7`);
+  },
+
+  setRate(rate) {
+    if (this.allMedia().length === 0) return this.noMedia();
+    const r = this.applyRateToAll(rate);
+    this.rememberRate(r);
+    this.notify(`Speed ${r.toFixed(2)}\u00d7`);
+  },
+
+  seek(seconds) {
+    const el = this.active();
+    if (!el) return this.noMedia();
+    const max = isFinite(el.duration) ? el.duration : Infinity;
+    el.currentTime = Math.min(max, Math.max(0, el.currentTime + seconds));
+    this.notify(`${seconds >= 0 ? "+" : ""}${seconds}s`);
+  },
+
+  // One frame is approximated as 1/60s; the exact frame rate is not exposed to web pages.
+  frameStep(direction) {
+    const el = this.active();
+    if (!el) return this.noMedia();
+    el.pause();
+    el.currentTime = Math.max(0, el.currentTime + (direction * (1 / 60)));
+    this.notify(direction > 0 ? "Frame +" : "Frame -");
+  },
+
+  togglePlay() {
+    const el = this.active();
+    if (!el) return this.noMedia();
+    if (el.paused) el.play();
+    else el.pause();
+  },
+
+  toggleMute() {
+    const el = this.active();
+    if (!el) return this.noMedia();
+    el.muted = !el.muted;
+    this.notify(el.muted ? "Muted" : "Unmuted");
+  },
+
+  toggleLoop() {
+    const el = this.active();
+    if (!el) return this.noMedia();
+    el.loop = !el.loop;
+    this.notify(el.loop ? "Loop on" : "Loop off");
+  },
+
+  async togglePictureInPicture() {
+    const el = this.active();
+    if (!el || el.tagName !== "VIDEO") return this.noMedia();
+    try {
+      if (document.pictureInPictureElement) {
+        await document.exitPictureInPicture();
+      } else {
+        await el.requestPictureInPicture();
+      }
+    } catch (_error) {
+      this.notify("Picture-in-picture unavailable");
+    }
+  },
+
+  toggleFullscreen() {
+    const el = this.active();
+    if (!el || el.tagName !== "VIDEO") return this.noMedia();
+    try {
+      if (document.fullscreenElement) {
+        document.exitFullscreen();
+      } else {
+        el.requestFullscreen();
+      }
+    } catch (_error) {
+      this.notify("Fullscreen unavailable");
+    }
+  },
+
+  restart() {
+    const el = this.active();
+    if (!el) return this.noMedia();
+    el.currentTime = 0;
+    this.notify("Restarted");
+  },
+};
+
 const NormalModeCommands = {
+  // Media / video speed control (globalSpeed-style). Added in this fork; see FORK_NOTES.md.
+  speedUpVideo(count, { registryEntry }) {
+    VideoMedia.changeRate(count, Number(registryEntry.options.step) || 0.25);
+  },
+  slowDownVideo(count, { registryEntry }) {
+    VideoMedia.changeRate(-count, Number(registryEntry.options.step) || 0.25);
+  },
+  resetVideoSpeed() {
+    VideoMedia.setRate(1);
+  },
+  setVideoSpeed(_count, { registryEntry }) {
+    VideoMedia.setRate(Number(registryEntry.options.speed) || 1);
+  },
+  seekVideoForward(count, { registryEntry }) {
+    VideoMedia.seek((Number(registryEntry.options.seconds) || 5) * count);
+  },
+  seekVideoBackward(count, { registryEntry }) {
+    VideoMedia.seek(-(Number(registryEntry.options.seconds) || 5) * count);
+  },
+  videoFrameForward() {
+    VideoMedia.frameStep(1);
+  },
+  videoFrameBackward() {
+    VideoMedia.frameStep(-1);
+  },
+  toggleVideoPlay() {
+    VideoMedia.togglePlay();
+  },
+  toggleVideoMute() {
+    VideoMedia.toggleMute();
+  },
+  toggleVideoLoop() {
+    VideoMedia.toggleLoop();
+  },
+  toggleVideoPictureInPicture() {
+    VideoMedia.togglePictureInPicture();
+  },
+  toggleVideoFullscreen() {
+    VideoMedia.toggleFullscreen();
+  },
+  restartVideo() {
+    VideoMedia.restart();
+  },
   // Scrolling.
   scrollToBottom() {
     Marks.setPreviousPosition();
@@ -562,4 +789,9 @@ class FocusSelector extends Mode {
 }
 
 globalThis.NormalMode = NormalMode;
+// Only wire up media listeners in a real browser (this module is also imported in Deno by the
+// command-listing build step, where `document` is absent).
+if (typeof document !== "undefined") {
+  VideoMedia.init();
+}
 globalThis.NormalModeCommands = NormalModeCommands;

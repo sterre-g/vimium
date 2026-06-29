@@ -488,6 +488,24 @@ const defaultKeyMappings = {
   // Misc
   "?": "showHelp",
   "gs": "toggleViewSource",
+
+  // Media / video (globalSpeed-style; added in this fork). All under the `s` (speed) prefix.
+  "sk": "speedUpVideo",
+  "sj": "slowDownVideo",
+  "sr": "resetVideoSpeed",
+  "sl": "seekVideoForward",
+  "sh": "seekVideoBackward",
+  "s.": "videoFrameForward",
+  "s,": "videoFrameBackward",
+  "sp": "toggleVideoPlay",
+  "sm": "toggleVideoMute",
+  "so": "toggleVideoLoop",
+  "si": "toggleVideoPictureInPicture",
+  "sF": "toggleVideoFullscreen",
+  "s0": "restartVideo",
+  "s1": "setVideoSpeed speed=1",
+  "s2": "setVideoSpeed speed=2",
+  "s3": "setVideoSpeed speed=3",
 };
 
 export {
